@@ -6,8 +6,9 @@ local process = require("docs.process")
 
 ---@class DocsConfigResolveContext
 ---@field query string
----@field filetype string
----@field mods string
+---@field filetype? string
+---@field mods? string
+---@field language string?
 
 local alias_recursion_limit = 10
 
@@ -55,15 +56,20 @@ function sources.get_for_filetype(filetype)
         return custom_source
     end
 
-    local filetype_sources = config.filetype[filetype]
+    local filetype_sources = config.filetype and config.filetype[filetype] or nil
 
-    if filetype_sources and #filetype_sources > 0 then
+    if not filetype_sources then
+        filetype_sources = require(("docs.sources.filetypes.%s"):format(filetype))
+    end
+
+    if filetype_sources and vim.tbl_count(filetype_sources) > 0 then
         local resolved_sources = {}
 
-        for filetype_source in filetype_sources do
+        for _, filetype_source in pairs(filetype_sources) do
             local resolved_source = resolve_source(filetype_source, {}, 0)
 
             if not resolved_source then
+                -- TODO: Throws away all other sources if any
                 return { config.fallback }
             end
 
@@ -80,7 +86,13 @@ end
 ---@param context DocsConfigResolveContext
 ---@async
 local function resolve_url_source(source, context)
-    config.open_url(source.url:format(context.query), process_on_exit_handler)
+    local url = source.url
+
+    if type(source.url) == "function" then
+        url = source.url(context)
+    end
+
+    config.open_url(url:format(context.query), process_on_exit_handler)
 end
 
 ---@param source DocsShellSource
@@ -132,17 +144,23 @@ function sources.run(source, context)
     elseif source.shell ~= nil then
         ---@cast source DocsShellSource
         resolve_shell_source(source, context)
-    elseif config.command ~= nil then
+    elseif source.command ~= nil then
         ---@cast source DocsCommandSource
         resolve_command_source(source, context)
-    elseif type(config.config_callback) == 'function' then
+    elseif type(source.config_callback) == 'function' then
         ---@cast source DocsSourceCallbackSource
         resolve_callback_source(source, context)
-    elseif type(config.callback) == "function" then
-        config.callback({
+    elseif type(source.callback) == "function" then
+        local new_source = source.callback({
             query = context.query,
             filetype = context.filetype
         })
+
+        if type(new_source.callback) == "function" then
+            message.error("Cannot generate a callback source from a callback source which would create an infinite loop")
+        end
+
+        sources.run(new_source, context)
     else
         message.error(("Failed to resolve source for filetype '%s'"):format(context.filetype))
     end

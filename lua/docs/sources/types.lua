@@ -1,7 +1,7 @@
 ---@alias DocsSourceAlias string
 
 ---@class DocsUrlSource
----@field url string?
+---@field url string | fun(context: DocsConfigResolveContext): string
 ---@field iskeyword string[]?
 ---@field aliases DocsSourceAlias[]
 ---@field name string
@@ -27,7 +27,7 @@
 ---@class DocsSourceCallbackSource
 ---@field callback fun(context: DocsCallbackContext): DocsSource
 ---@field iskeyword string[]?
----@field aliases DocsSourceAlias[]
+---@field aliases DocsSourceAlias[]?
 
 ---@class DocsCallbackSource
 ---@field callback fun(query: string, filetype: string)

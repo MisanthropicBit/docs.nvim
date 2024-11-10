@@ -2,6 +2,7 @@ local docs = {}
 
 local config = require("docs.config")
 local cword = require("docs.cword")
+local message = require("docs.message")
 local pickers = require("docs.pickers")
 local sources = require("docs.sources")
 
@@ -21,31 +22,44 @@ end
 ---@param options table
 function docs.open_docs_from_command(options)
     local fargs = options.fargs
-    local query, filetype, doc_sources
+    local query, filetype, doc_sources = fargs[1], vim.bo.filetype, nil
 
-    if #fargs > 1 then
-        query, doc_sources = fargs[1], { sources.resolve(fargs[2]) }
-        -- TODO: Check if doc_sources is a filetype or a builtin
+    -- TODO: Check if doc_sources is a filetype or a builtin
+    if #fargs == 1 then
+        filetype = vim.bo.filetype
     else
-        filetype, doc_sources = vim.bo.filetype, sources.get_for_filetype(filetype)
+        filetype = fargs[2]
     end
 
-    vim.print(config.sources)
-    vim.print(query, doc_sources, filetype)
+    if filetype and #filetype > 0 then
+        doc_sources = sources.get_for_filetype(filetype)
+    end
 
     if not doc_sources or #doc_sources == 0 then
-        vim.notify("No available documentation source", vim.log.levels.ERROR)
-        return
+        -- TODO: Change to config.fallback
+        doc_sources = { require("docs.sources.builtins.devdocs") }
+        -- vim.notify("No available documentation source", vim.log.levels.ERROR)
+        -- return
     end
 
+    local context = {
+        query = query,
+        filetype = filetype,
+        mods = options.mods,
+    }
+
     if #doc_sources > 1 then
-        pickers.get_picker()(doc_sources)
+        vim.print(vim.inspect(config))
+        local picker = pickers.get_picker(config.picker)
+        vim.print(vim.inspect(picker))
+
+        if not picker then
+            message.error(("Invalid picker option in config: '%s'"):format(config.picker))
+        else
+            picker.pick_source(context, doc_sources)
+        end
     else
-        sources.run(doc_sources[1], {
-            query = query,
-            filetype = filetype,
-            mods = options.mods,
-        })
+        sources.run(doc_sources[1], context)
     end
 end
 

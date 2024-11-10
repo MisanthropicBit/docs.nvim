@@ -7,7 +7,7 @@ local config_loaded = false
 
 ---@class DocsConfig
 ---@field builtins boolean
----@field picker false | "fzf-lua" | "telescope"
+---@field picker "builtin" | "fzf-lua" | "telescope"
 ---@field icons boolean
 ---@field sources table<string, DocsSource[]>
 ---@field fallback DocsSource
@@ -43,7 +43,7 @@ function config.validate(_config)
         },
         picker = {
             _config.picker,
-            "boolean",
+            "string",
         },
         icons = {
             _config.icons,
@@ -83,7 +83,7 @@ function config._default_config()
     ---@type DocsConfig
     return {
         builtins = true,
-        picker = false,
+        picker = "builtin",
         icons = false,
         sources = {},
         fallback = require("docs.sources.builtins.devdocs"),
@@ -94,26 +94,28 @@ end
 
 local _user_config = config._default_config()
 
----@param user_config DocsConfig
+---@param user_config? DocsConfig
 ---@return boolean
 function config.configure(user_config)
+    vim.print(vim.inspect(user_config))
     _user_config = vim.tbl_deep_extend("keep", user_config or {}, config._default_config())
+    _user_config.picker = "fzf-lua"
 
-    local ok, error = config.validate(_user_config)
-
-    if not ok then
-        message.error("Errors found in config: " .. error)
-    else
-        config_loaded = true
-    end
-
+    -- local ok, error = config.validate(_user_config)
+    --
+    -- if not ok then
+    --     message.error("Errors found in config: " .. error)
+    -- else
+    --     config_loaded = true
+    -- end
+    --
     if type(_user_config.builtins) == "boolean" and _user_config.builtins then
         for _, name in ipairs(require("docs.sources.builtins").names()) do
             _user_config.sources[name] = require("docs.sources.builtins")[name]
         end
     end
 
-    return ok
+    return true -- ok
 end
 
 setmetatable(config, {
